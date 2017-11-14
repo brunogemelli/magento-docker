@@ -1,64 +1,29 @@
-FROM php:5.6-fpm
-
-# Install
-RUN buildDeps=" \
-        libpng12-dev \
-        libjpeg-dev \
-        libmcrypt-dev \
-        libxml2-dev \
-        freetype* \
-        libicu-dev \
-        g++ \
-        golang-go \
-        git-core \
-        libmemcached-dev \
-        wget \
-    "; \
-    set -x \
-    && apt-get update \
-    && apt-get install -y $buildDeps --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
-
-### Install Mailhog
-ENV GOPATH /tmp
-RUN cd /tmp
-RUN go get github.com/mailhog/mhsendmail
-RUN cd /tmp/src/github.com/mailhog/mhsendmail/ && go build
-RUN cp /tmp/src/github.com/mailhog/mhsendmail/mhsendmail /usr/local/bin
-
-RUN docker-php-ext-configure \
-    gd --with-png-dir=/usr --with-jpeg-dir=/usr --with-freetype-dir \
-    && docker-php-ext-install \
-    gd \
-    mbstring \
-    mysqli \
-    mcrypt \
-    pdo_mysql \
-    soap \
-    zip \
-    intl \
-    && pecl install memcached-2.2.0 \
-    && pecl install lzf \
-    && docker-php-ext-enable memcached lzf \
-    && cd /tmp/ && git clone https://github.com/derickr/xdebug.git \
-    && cd xdebug && git checkout tags/XDEBUG_2_2_2 \
-    && phpize && ./configure --enable-xdebug && make \
-    && mkdir /usr/lib/php/ && cp modules/xdebug.so /usr/lib/php/xdebug.so \
-    && touch /usr/local/etc/php/ext-xdebug.ini \
-    && rm -r /tmp/xdebug
-
-RUN curl -L -o /tmp/redis.tar.gz https://github.com/phpredis/phpredis/archive/2.2.7.tar.gz \
-    && tar xfz /tmp/redis.tar.gz \
-    && rm -r /tmp/redis.tar.gz \
-    && mkdir /usr/src/php \
-    && mkdir /usr/src/php/ext \
-    && mv phpredis-2.2.7 /usr/src/php/ext/redis \
-    && docker-php-ext-install redis
-
-#PHPUnit compatible with EcomDev module
-RUN cd /tmp/ && wget http://phar.phpunit.de/phpunit-5.5.5.phar \
-    && mv phpunit-5.5.5.phar /usr/local/bin/phpunit \
-    && chmod +x /usr/local/bin/phpunit
+FROM php:7.0-fpm
+RUN apt-get update && apt-get install -y \
+                libmcrypt-dev  \
+                libicu-dev \
+                mysql-client \
+                libfreetype6-dev \
+                libmcrypt-dev \
+                libpng12-dev \
+                libxml2-dev \
+                libxslt-dev \
+                libjpeg62-turbo-dev \
+        && docker-php-ext-configure gd --with-freetype-dir=/usr/include/ --with-jpeg-dir=/usr/include/ \
+        && docker-php-ext-install -j$(nproc) gd \
+        && docker-php-ext-install pdo \
+        && docker-php-ext-install mysqli \
+        && docker-php-ext-install pdo_mysql \
+        && docker-php-ext-install mcrypt \
+        && docker-php-ext-install intl \
+        && docker-php-ext-install opcache \
+        && docker-php-ext-install xml \
+        && docker-php-ext-install soap \
+        && docker-php-ext-install xsl \
+        && docker-php-ext-install zip \
+        && docker-php-ext-install json \
+        && pecl install xdebug \
+        && docker-php-ext-enable xdebug
 
 # Configure
 COPY php.ini /usr/local/etc/php/php.ini
@@ -67,3 +32,5 @@ COPY ext-xdebug.ini /usr/local/etc/php/conf.d/ext-xdebug.ini
 
 # Make sure the volume mount point is empty
 RUN rm -rf /var/www/html/*
+
+CMD ["php-fpm"]
